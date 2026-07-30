@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import { listOrgEnvironments } from './environments';
+import { listOrgGroups } from './groups';
 import { getPortalSettingsByEnvironmentId } from './portalSettings';
 import { listOrgTags } from './tags';
 import { apimFetchJsonOrg } from '../../../shared/api/apimClient';
@@ -48,5 +49,10 @@ describe('entrypoint supporting services', () => {
     it('listOrgTags calls GET /configuration/tags', async () => {
         await listOrgTags();
         expect(mockApimFetchJsonOrg).toHaveBeenCalledWith('/configuration/tags');
+    });
+
+    it('listOrgGroups calls GET /groups', async () => {
+        await listOrgGroups();
+        expect(mockApimFetchJsonOrg).toHaveBeenCalledWith('/groups');
     });
 });

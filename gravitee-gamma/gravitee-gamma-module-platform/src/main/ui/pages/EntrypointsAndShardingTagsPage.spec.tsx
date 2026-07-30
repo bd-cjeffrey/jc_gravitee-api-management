@@ -13,15 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { useHasFeature, useHasPermission } from '@gravitee/gamma-modules-sdk';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 import { EntrypointsAndShardingTagsPage } from './EntrypointsAndShardingTagsPage';
 import { useEntrypointConfigurations } from '../features/entrypoints/hooks/useEntrypointConfigurations';
 import { useEntrypointMappings } from '../features/entrypoints/hooks/useEntrypointMappings';
-import type { EntrypointMappingRow } from '../features/entrypoints/types/entrypoint';
+import { useShardingTags } from '../features/entrypoints/hooks/useShardingTags';
+import type { EntrypointMappingRow, ShardingTagRow } from '../features/entrypoints/types/entrypoint';
+
+jest.mock('@gravitee/gamma-modules-sdk', () => ({
+    useHasPermission: jest.fn(),
+    useHasFeature: jest.fn(),
+}));
 
 jest.mock('../features/entrypoints/hooks/useEntrypointConfigurations');
 jest.mock('../features/entrypoints/hooks/useEntrypointMappings');
+jest.mock('../features/entrypoints/hooks/useShardingTags');
 
 jest.mock('../features/entrypoints/components/EntrypointConfigurationSection', () => ({
     EntrypointConfigurationSection: () => <div data-testid="entrypoint-configuration-section" />,
@@ -50,6 +58,36 @@ jest.mock('../features/entrypoints/components/EntrypointMappingsTable', () => ({
     ),
 }));
 
+jest.mock('../features/entrypoints/components/ShardingTagsTable', () => ({
+    CreateShardingTagButton: ({ onCreate }: { onCreate?: () => void }) => (
+        <button type="button" onClick={onCreate}>
+            Add a tag
+        </button>
+    ),
+    ShardingTagsTable: ({
+        rows,
+        canCreate,
+        onOpenDetail,
+    }: {
+        rows: ShardingTagRow[];
+        canCreate: boolean;
+        onOpenDetail: (row: ShardingTagRow) => void;
+        onCreate?: () => void;
+        onUpgrade: () => void;
+        hasLicense: boolean;
+    }) => (
+        <div>
+            <div data-testid="tags-can-create">{String(canCreate)}</div>
+            {rows.map(row => (
+                <button key={row.id} type="button" onClick={() => onOpenDetail(row)}>
+                    Open tag {row.key}
+                </button>
+            ))}
+            {rows.length === 0 ? <div>No sharding tags</div> : null}
+        </div>
+    ),
+}));
+
 jest.mock('../features/entrypoints/components/EntrypointDetailSheet', () => ({
     EntrypointDetailSheet: ({ entrypoint, onClose }: { entrypoint: EntrypointMappingRow | null; onClose: () => void }) =>
         entrypoint ? (
@@ -62,10 +100,30 @@ jest.mock('../features/entrypoints/components/EntrypointDetailSheet', () => ({
         ) : null,
 }));
 
+jest.mock('../features/entrypoints/components/ShardingTagDetailSheet', () => ({
+    ShardingTagDetailSheet: ({ tag, onClose }: { tag: ShardingTagRow | null; onClose: () => void }) =>
+        tag ? (
+            <div>
+                <div>Tag detail {tag.key}</div>
+                <button type="button" onClick={onClose}>
+                    Close tag detail
+                </button>
+            </div>
+        ) : null,
+}));
+
+jest.mock('../features/entrypoints/components/ShardingTagsLicenseDialog', () => ({
+    ShardingTagsLicenseDialog: ({ open }: { open: boolean; onOpenChange: (open: boolean) => void }) =>
+        open ? <div>License dialog</div> : null,
+}));
+
 const mockUseEntrypointConfigurations = jest.mocked(useEntrypointConfigurations);
 const mockUseEntrypointMappings = jest.mocked(useEntrypointMappings);
+const mockUseShardingTags = jest.mocked(useShardingTags);
+const mockUseHasPermission = jest.mocked(useHasPermission);
+const mockUseHasFeature = jest.mocked(useHasFeature);
 
-const STUB_ROWS: EntrypointMappingRow[] = [
+const STUB_MAPPING_ROWS: EntrypointMappingRow[] = [
     {
         id: 'ep-1',
         value: 'https://api.example.com',
@@ -78,18 +136,37 @@ const STUB_ROWS: EntrypointMappingRow[] = [
     },
 ];
 
+const STUB_TAG_ROWS: ShardingTagRow[] = [
+    {
+        id: 'tag-1',
+        key: 'prod',
+        name: 'Production',
+        description: 'Prod tag',
+        restrictedGroupIds: [],
+        restrictedGroupNames: [],
+    },
+];
+
 describe('EntrypointsAndShardingTagsPage', () => {
     beforeEach(() => {
+        mockUseHasPermission.mockReturnValue(true);
+        mockUseHasFeature.mockReturnValue(true);
         mockUseEntrypointConfigurations.mockReturnValue({
             data: { configs: [], failedEnvironmentNames: [] },
             isLoading: false,
             isError: false,
         } as ReturnType<typeof useEntrypointConfigurations>);
         mockUseEntrypointMappings.mockReturnValue({
-            rows: STUB_ROWS,
+            rows: STUB_MAPPING_ROWS,
             isLoading: false,
             isError: false,
             isNameResolutionError: false,
+        });
+        mockUseShardingTags.mockReturnValue({
+            rows: STUB_TAG_ROWS,
+            isLoading: false,
+            isError: false,
+            isGroupNameResolutionError: false,
         });
     });
 
@@ -101,10 +178,18 @@ describe('EntrypointsAndShardingTagsPage', () => {
         render(<EntrypointsAndShardingTagsPage />);
         expect(screen.getByRole('heading', { name: 'Entrypoints & Sharding Tags' })).not.toBeNull();
         expect(screen.getByTestId('entrypoint-configuration-section')).not.toBeNull();
+        expect(screen.getByText('Sharding Tags')).not.toBeNull();
         expect(screen.getByText('Entrypoint Mappings')).not.toBeNull();
     });
 
-    it('uses read-only page copy without create CTA', () => {
+    it('hides sharding tags section when user cannot read tags', () => {
+        mockUseHasPermission.mockReturnValue(false);
+        render(<EntrypointsAndShardingTagsPage />);
+        expect(screen.queryByText('Sharding Tags')).toBeNull();
+        expect(screen.getByText('Entrypoint Mappings')).not.toBeNull();
+    });
+
+    it('uses read-only page copy without create CTA for mappings', () => {
         render(<EntrypointsAndShardingTagsPage />);
         expect(
             screen.getByText(/View entrypoint configuration and mappings used by the Developer Portal based on API sharding tags/),
@@ -113,12 +198,20 @@ describe('EntrypointsAndShardingTagsPage', () => {
         expect(screen.getByTestId('mappings-can-create').textContent).toBe('false');
     });
 
-    it('opens detail sheet when a mapping row is selected', () => {
+    it('opens mapping detail sheet when a mapping row is selected', () => {
         render(<EntrypointsAndShardingTagsPage />);
         fireEvent.click(screen.getByRole('button', { name: 'Open https://api.example.com' }));
         expect(screen.getByText('Detail https://api.example.com')).not.toBeNull();
         fireEvent.click(screen.getByRole('button', { name: 'Close detail' }));
         expect(screen.queryByText('Detail https://api.example.com')).toBeNull();
+    });
+
+    it('opens tag detail sheet when a tag row is selected', () => {
+        render(<EntrypointsAndShardingTagsPage />);
+        fireEvent.click(screen.getByRole('button', { name: 'Open tag prod' }));
+        expect(screen.getByText('Tag detail prod')).not.toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Close tag detail' }));
+        expect(screen.queryByText('Tag detail prod')).toBeNull();
     });
 
     it('shows inline error when mappings fail to load', () => {
@@ -134,7 +227,7 @@ describe('EntrypointsAndShardingTagsPage', () => {
 
     it('warns when environment or tag name resolution fails', () => {
         mockUseEntrypointMappings.mockReturnValue({
-            rows: STUB_ROWS,
+            rows: STUB_MAPPING_ROWS,
             isLoading: false,
             isError: false,
             isNameResolutionError: true,
