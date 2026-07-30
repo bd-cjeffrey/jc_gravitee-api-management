@@ -679,8 +679,8 @@
         </dependency>
         <dependency>
             <groupId>io.gravitee.policy</groupId>
-            <artifactId>gravitee-policy-javascript</artifactId>
-            <version>${gravitee-policy-javascript.version}</version>
+            <artifactId>gravitee-policy-js</artifactId>
+            <version>${gravitee-policy-js.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
