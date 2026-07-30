@@ -449,6 +449,7 @@ public class DeleteEnvironmentCommandHandlerTest {
                     true,
                     PortalNavigationItem.Visibility.PUBLIC,
                     null,
+                    null,
                     null
                 )
             )
@@ -682,6 +683,7 @@ public class DeleteEnvironmentCommandHandlerTest {
                     "{}",
                     true,
                     PortalNavigationItem.Visibility.PUBLIC,
+                    null,
                     null,
                     null
                 )

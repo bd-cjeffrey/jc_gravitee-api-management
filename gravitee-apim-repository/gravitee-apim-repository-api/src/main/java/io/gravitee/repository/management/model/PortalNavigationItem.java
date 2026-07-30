@@ -16,6 +16,7 @@
 package io.gravitee.repository.management.model;
 
 import jakarta.annotation.Nonnull;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -82,4 +83,7 @@ public class PortalNavigationItem {
     private String apiId;
 
     private String apiProductId;
+
+    @Builder.Default
+    private List<String> categoryIds = List.of();
 }
