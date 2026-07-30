@@ -320,6 +320,33 @@ jobs:
             << parameters.docker-context >>
           working_directory: << parameters.apim-project >>
       - cmd-docker-logout
+  job-aikido-scan-docker-images:
+    machine:
+      image: ubuntu-2204:current
+      docker_layer_caching: false
+    resource_class: medium
+    steps:
+      - keeper/env-export:
+          secret-url: keeper://_XrkO71xa9HZBwxYoUHX0w/field/password
+          var-name: AIKIDO_API_KEY
+      - cmd-docker-login
+      - run:
+          name: Pull docker images to scan
+          command: |-
+            IMAGES="
+            graviteeio/apim-portal-ui:4.2.0
+            graviteeio/apim-management-ui:4.2.0
+            graviteeio/apim-management-api:4.2.0
+            graviteeio/apim-management-api:4.2.0-debian
+            graviteeio/apim-gateway:4.2.0
+            graviteeio/apim-gateway:4.2.0-debian
+            "
+            printf '%s\n' $IMAGES > /tmp/aikido-images.txt
+            while read -r image; do docker pull "$image"; done < /tmp/aikido-images.txt
+      - aikido/scan_docker_image:
+          built_docker_image_file: /tmp/aikido-images.txt
+          fail_on: ""
+      - cmd-docker-logout
 workflows:
   build-docker-images:
     jobs:
@@ -381,6 +408,16 @@ workflows:
           apim-project: gravitee-apim-gateway
           docker-context: gravitee-apim-gateway-standalone/gravitee-apim-gateway-standalone-distribution/target
           docker-image-name: apim-gateway
+      - job-aikido-scan-docker-images:
+          context:
+            - cicd-orchestrator
+          name: Scan docker images with Aikido for APIM 4.2.0
+          requires:
+            - Build APIM Portal docker image for APIM 4.2.0
+            - Build APIM Console docker image for APIM 4.2.0
+            - Build APIM Management API docker image for APIM 4.2.0
+            - Build APIM Gateway docker image for APIM 4.2.0
 orbs:
   keeper: gravitee-io/keeper@0.7.0
   slack: circleci/slack@4.12.5
+  aikido: gravitee-io/aikido@1.0.1

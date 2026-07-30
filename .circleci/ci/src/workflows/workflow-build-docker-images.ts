@@ -16,6 +16,7 @@
 import { Config, Workflow, workflow } from '@circleci/circleci-config-sdk';
 import { CircleCIEnvironment } from '../pipelines';
 import {
+  AikidoScanDockerImagesJob,
   BackendBuildAndPublishOnDownloadWebsiteJob,
   BuildDockerBackendImageJob,
   BuildDockerWebUiImageJob,
@@ -94,6 +95,9 @@ export class BuildDockerImagesWorkflow {
         'docker-context': 'gravitee-apim-gateway-standalone/gravitee-apim-gateway-standalone-distribution/target',
         'docker-image-name': config.components.gateway.image,
       }),
+
+      // Aikido image scans
+      ...AikidoScanDockerImagesJob.workflowJobs(dynamicConfig, environment, true, ` for APIM ${environment.graviteeioVersion}`),
     ];
 
     return new Workflow('build-docker-images', jobs);
