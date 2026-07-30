@@ -19,14 +19,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import fixtures.PortalNavigationItemsFixtures;
 import fixtures.core.model.PortalNavigationItemFixtures;
+import io.gravitee.apim.core.portal_category.model.PortalCategoryId;
 import io.gravitee.apim.core.portal_page.model.CreatePortalNavigationItem;
 import io.gravitee.apim.core.portal_page.model.PortalArea;
 import io.gravitee.rest.api.management.v2.rest.model.BasePortalNavigationItem;
+import io.gravitee.rest.api.management.v2.rest.model.CreatePortalNavigationApi;
 import io.gravitee.rest.api.management.v2.rest.model.CreatePortalNavigationApiProduct;
 import io.gravitee.rest.api.management.v2.rest.model.CreatePortalNavigationLink;
 import io.gravitee.rest.api.management.v2.rest.model.CreatePortalNavigationPage;
 import io.gravitee.rest.api.management.v2.rest.model.PortalNavigationItemType;
 import io.gravitee.rest.api.management.v2.rest.model.PortalPageContentType;
+import io.gravitee.rest.api.management.v2.rest.model.UpdatePortalNavigationApi;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
@@ -125,6 +129,20 @@ class PortalNavigationItemsMapperTest {
             assertThat(result.getParentId()).isNull();
             assertThat(result.getApiId()).isEqualTo("apiId");
             assertThat(result.getRootId()).isEqualTo(api.getRootId().id());
+            assertThat(result.getCategoryIds()).isEmpty();
+        }
+
+        @Test
+        void should_map_portal_navigation_api_category_ids() {
+            var api = PortalNavigationItemFixtures.anApi();
+            var category1 = PortalCategoryId.random();
+            var category2 = PortalCategoryId.random();
+            api.update(PortalNavigationItemFixtures.anUpdatePortalNavigationApi(List.of(category1, category2)));
+
+            var result = mapper.map(api);
+
+            assertThat(result).isInstanceOf(io.gravitee.rest.api.management.v2.rest.model.PortalNavigationApi.class);
+            assertThat(result.getCategoryIds()).containsExactly(category1.id(), category2.id());
         }
 
         @Test
@@ -218,6 +236,31 @@ class PortalNavigationItemsMapperTest {
             assertThat(result.getOrder()).isEqualTo(3);
             assertThat(result.getParentId().id()).isEqualTo(link.getParentId());
             assertThat(result.getUrl()).isEqualTo(((CreatePortalNavigationLink) link).getUrl());
+        }
+
+        @Test
+        void should_map_create_portal_navigation_api_category_ids() {
+            final var api = (CreatePortalNavigationApi) PortalNavigationItemsFixtures.aCreatePortalNavigationApi();
+            var category1 = UUID.randomUUID();
+            var category2 = UUID.randomUUID();
+            api.setCategoryIds(List.of(category1, category2));
+
+            var result = mapper.map(api);
+
+            assertThat(result.getType()).isEqualTo(io.gravitee.apim.core.portal_page.model.PortalNavigationItemType.API);
+            assertThat(result.getCategoryIds()).containsExactly(new PortalCategoryId(category1), new PortalCategoryId(category2));
+        }
+
+        @Test
+        void should_map_update_portal_navigation_api_category_ids() {
+            final var api = (UpdatePortalNavigationApi) PortalNavigationItemsFixtures.anUpdatePortalNavigationApi();
+            var category1 = UUID.randomUUID();
+            api.setCategoryIds(List.of(category1));
+
+            var result = mapper.map(api);
+
+            assertThat(result.getType()).isEqualTo(io.gravitee.apim.core.portal_page.model.PortalNavigationItemType.API);
+            assertThat(result.getCategoryIds()).containsExactly(new PortalCategoryId(category1));
         }
 
         @Test

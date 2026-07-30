@@ -16,6 +16,7 @@
 package io.gravitee.rest.api.management.v2.rest.mapper;
 
 import io.gravitee.apim.core.exception.TechnicalDomainException;
+import io.gravitee.apim.core.portal_category.model.PortalCategoryId;
 import io.gravitee.apim.core.portal_page.model.PortalNavigationItemId;
 import io.gravitee.apim.core.portal_page.use_case.SeedDefaultPagesForApiNavigationItemsUseCase;
 import io.gravitee.rest.api.management.v2.rest.model.BaseCreatePortalNavigationItem;
@@ -206,4 +207,12 @@ public interface PortalNavigationItemsMapper {
     );
 
     io.gravitee.apim.core.portal_page.model.UpdatePortalNavigationItem map(UpdatePortalNavigationApiProduct apiProduct);
+
+    default PortalCategoryId mapCategoryId(UUID id) {
+        return id != null ? new PortalCategoryId(id) : null;
+    }
+
+    default UUID mapCategoryId(PortalCategoryId id) {
+        return id != null ? id.id() : null;
+    }
 }

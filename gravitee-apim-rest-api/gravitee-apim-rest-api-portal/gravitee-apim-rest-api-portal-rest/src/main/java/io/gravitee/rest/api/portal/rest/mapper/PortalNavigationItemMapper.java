@@ -16,6 +16,7 @@
 package io.gravitee.rest.api.portal.rest.mapper;
 
 import io.gravitee.apim.core.exception.TechnicalDomainException;
+import io.gravitee.apim.core.portal_category.model.PortalCategoryId;
 import io.gravitee.apim.core.portal_page.model.AsyncApiPageContent;
 import io.gravitee.apim.core.portal_page.model.GraviteeMarkdownPageContent;
 import io.gravitee.apim.core.portal_page.model.OpenApiConfiguration;
@@ -38,6 +39,7 @@ import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -135,6 +137,14 @@ public interface PortalNavigationItemMapper {
 
     default String map(PortalPageContentId portalPageContentId) {
         return portalPageContentId.json();
+    }
+
+    default PortalCategoryId mapCategoryId(UUID id) {
+        return id != null ? new PortalCategoryId(id) : null;
+    }
+
+    default UUID mapCategoryId(PortalCategoryId id) {
+        return id != null ? id.id() : null;
     }
 
     default Set<io.gravitee.apim.core.portal_page.model.PortalNavigationSearchInclude> map(
