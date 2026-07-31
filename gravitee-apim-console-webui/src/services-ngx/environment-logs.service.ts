@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { RequestFilter } from '@gravitee/gravitee-dashboard';
+
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
@@ -71,18 +73,12 @@ export type SearchLogsParam = {
   from?: string;
   to?: string;
   requestId?: string;
-  apiIds?: string[];
-  applicationIds?: string[];
-  planIds?: string[];
-  methods?: string[];
-  statuses?: number[];
-  entrypoints?: string[];
-  transactionId?: string;
-  uri?: string;
-  responseTime?: number;
-  errorKeys?: string[];
-  apiProductIds?: string[];
-  bodyText?: string;
+  /**
+   * Filter bar conditions, forwarded as-is. Deliberately not a per-field shape: the previous one enumerated a
+   * handful of known filters and silently dropped every other active chip (APIM-14817). The catalog decides
+   * which filters exist — this service only reshapes them for the wire.
+   */
+  filters?: RequestFilter[];
 };
 
 /** Parses a period string like '-1h', '-30m', '-3d' into milliseconds. Returns null for '0' (none) or unrecognized formats. */
@@ -106,34 +102,38 @@ type SearchLogsRequestBody = {
   filters?: LogFilter[];
 };
 
+/**
+ * Reshapes one filter-bar condition into the wire filter for its operator.
+ *
+ * The search API models a filter as a `oneOf` discriminated on `operator`: `IN` carries an array, `GTE`/`LTE`
+ * carry a number, everything else carries a single string. The filter bar always yields string values, and
+ * collapses a single-element list to a scalar — hence the coercion here.
+ */
+function toLogFilter({ name, operator, value }: RequestFilter): LogFilter | null {
+  const values = (Array.isArray(value) ? value : [value]).filter(v => v != null && `${v}`.length > 0).map(v => `${v}`);
+  if (values.length === 0) {
+    return null;
+  }
+
+  switch (operator) {
+    case 'IN':
+      return { name, operator, value: values };
+    case 'GTE':
+    case 'LTE': {
+      const numeric = Number(values[0]);
+      return Number.isFinite(numeric) ? { name, operator, value: numeric } : null;
+    }
+    default:
+      return { name, operator, value: values[0] };
+  }
+}
+
 function buildFilters(param?: SearchLogsParam): LogFilter[] {
-  if (!param) return [];
+  const filters = (param?.filters ?? []).map(toLogFilter).filter((f): f is LogFilter => f !== null);
 
-  const arrayFilters: { name: string; values: string[] | undefined }[] = [
-    { name: 'API', values: param.apiIds },
-    { name: 'APPLICATION', values: param.applicationIds },
-    { name: 'PLAN', values: param.planIds },
-    { name: 'HTTP_METHOD', values: param.methods },
-    { name: 'HTTP_STATUS', values: param.statuses?.map(String) },
-    { name: 'ENTRYPOINT', values: param.entrypoints },
-    { name: 'ERROR_KEY', values: param.errorKeys },
-    { name: 'API_PRODUCT', values: param.apiProductIds },
-  ];
-
-  const scalarFilters: { name: string; value: string | undefined; operator?: string }[] = [
-    { name: 'REQUEST_ID', value: param.requestId },
-    { name: 'TRANSACTION_ID', value: param.transactionId },
-    { name: 'URI', value: param.uri },
-    { name: 'PAYLOAD', value: param.bodyText, operator: 'CONTAINS' },
-  ];
-
-  const filters: LogFilter[] = [
-    ...arrayFilters.filter(f => f.values?.length).map(f => ({ name: f.name, operator: 'IN' as const, value: f.values! })),
-    ...scalarFilters.filter(f => f.value).map(f => ({ name: f.name, operator: (f.operator ?? 'EQ') as 'EQ', value: f.value! })),
-  ];
-
-  if (param.responseTime != null && param.responseTime > 0) {
-    filters.push({ name: 'RESPONSE_TIME', operator: 'GTE', value: param.responseTime });
+  // The detail page searches by request id alone, outside the filter bar.
+  if (param?.requestId) {
+    filters.push({ name: 'REQUEST_ID', operator: 'EQ', value: param.requestId });
   }
 
   return filters;

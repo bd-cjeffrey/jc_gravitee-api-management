@@ -17,7 +17,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
-import { ObservabilityFiltersApiService } from './observability-filters-api.service';
+import { OBSERVABILITY_SIGNAL, ObservabilityFiltersApiService } from './observability-filters-api.service';
 
 import { Constants } from '../../../entities/Constants';
 import { CONSTANTS_TESTING } from '../../../shared/testing/gio-testing.module';
@@ -168,5 +168,41 @@ describe('ObservabilityFiltersApiService', () => {
       .flush({
         data: new Array(10).fill(0).map((_, i) => ({ value: `g${i}` })),
       });
+  });
+
+  it('should not narrow the catalog when no signal is provided', done => {
+    const base = CONSTANTS_TESTING.env!.v2BaseURL!;
+    service.getDefinitions().subscribe(() => done());
+
+    const req = httpMock.expectOne(`${base}/observability/filters/definition`);
+    expect(req.request.params.has('signal')).toBe(false);
+    req.flush({ data: [] });
+  });
+
+  describe('when a signal is provided', () => {
+    beforeEach(() => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          ObservabilityFiltersApiService,
+          { provide: OBSERVABILITY_SIGNAL, useValue: 'LOGS' },
+          { provide: Constants, useValue: CONSTANTS_TESTING },
+          provideHttpClient(withInterceptorsFromDi()),
+          provideHttpClientTesting(),
+        ],
+      });
+      service = TestBed.inject(ObservabilityFiltersApiService);
+      httpMock = TestBed.inject(HttpTestingController);
+    });
+
+    // APIM-14817: without this the logs screen offers analytics-only filters it cannot apply.
+    it('should ask the backend for that signal only', done => {
+      const base = CONSTANTS_TESTING.env!.v2BaseURL!;
+      service.getDefinitions().subscribe(() => done());
+
+      const req = httpMock.expectOne(r => r.url === `${base}/observability/filters/definition`);
+      expect(req.request.params.get('signal')).toBe('LOGS');
+      req.flush({ data: [] });
+    });
   });
 });

@@ -18,7 +18,9 @@ package io.gravitee.apim.core.analytics_engine.use_case;
 import io.gravitee.apim.core.UseCase;
 import io.gravitee.apim.core.analytics_engine.model.FilterSpec;
 import io.gravitee.apim.core.analytics_engine.query_service.AnalyticsDefinitionQueryService;
+import io.gravitee.apim.core.observability.model.Signal;
 import java.util.List;
+import java.util.Set;
 
 @UseCase
 public class GetAnalyticsFilterDefinitionsUseCase {
@@ -29,9 +31,14 @@ public class GetAnalyticsFilterDefinitionsUseCase {
         this.definition = definition;
     }
 
+    /** @param signals signals to narrow the catalog to; empty returns the whole catalog. */
+    public record Input(Set<Signal> signals) {
+        public static final Input ALL = new Input(Set.of());
+    }
+
     public record Output(List<FilterSpec> specs) {}
 
-    public Output execute() {
-        return new Output(definition.getAllFilters());
+    public Output execute(Input input) {
+        return new Output(definition.getFilters(input.signals()));
     }
 }

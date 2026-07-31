@@ -38,7 +38,11 @@ import { MatDialog } from '@angular/material/dialog';
 import { DashboardFiltersStore } from './dashboard-filters.store';
 import { FilterLabelResolver } from './filter-label.resolver';
 
-import { ObservabilityFiltersApiService } from '../../../data-access/observability-filters-api.service';
+import {
+  OBSERVABILITY_SIGNAL,
+  ObservabilityFiltersApiService,
+  ObservabilitySignal,
+} from '../../../data-access/observability-filters-api.service';
 import { Constants } from '../../../../../entities/Constants';
 
 @Component({
@@ -48,6 +52,9 @@ import { Constants } from '../../../../../entities/Constants';
   styleUrl: './dashboard-viewer.component.scss',
   providers: [
     DashboardFiltersStore,
+    // Dashboards query the analytics engine, which rejects logs-only filters such as TRANSACTION_ID with a
+    // 400 (APIM-14828). Narrowing the catalog keeps them out of the filter bar in the first place.
+    { provide: OBSERVABILITY_SIGNAL, useValue: 'ANALYTICS' satisfies ObservabilitySignal },
     ObservabilityFiltersApiService,
     FilterLabelResolver,
     provideFilterDefinitions(ObservabilityFiltersApiService),

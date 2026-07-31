@@ -22,6 +22,7 @@ import io.gravitee.apim.core.analytics_engine.model.FacetSpec;
 import io.gravitee.apim.core.analytics_engine.model.FilterSpec;
 import io.gravitee.apim.core.analytics_engine.model.MetricSpec;
 import io.gravitee.apim.core.analytics_engine.query_service.AnalyticsDefinitionQueryService;
+import io.gravitee.apim.core.observability.model.Signal;
 import io.gravitee.apim.core.utils.CollectionUtils;
 import io.gravitee.apim.infra.domain_service.observability.YAMLDefinitionLoader;
 import java.util.EnumMap;
@@ -59,7 +60,7 @@ public class AnalyticsDefinitionYAMLQueryService implements AnalyticsDefinitionQ
                 var apis = CollectionUtils.isNotEmpty(f.apis())
                     ? List.copyOf(f.apis())
                     : List.copyOf(apisByFilter.getOrDefault(f.name(), Set.of()));
-                return new FilterSpec(f.name(), f.label(), f.type(), f.enumValues(), f.range(), f.operators(), apis);
+                return f.withApis(apis);
             })
             .toList();
 
@@ -83,6 +84,18 @@ public class AnalyticsDefinitionYAMLQueryService implements AnalyticsDefinitionQ
     @Override
     public List<FilterSpec> getAllFilters() {
         return spec.filters();
+    }
+
+    @Override
+    public List<FilterSpec> getFilters(Set<Signal> signals) {
+        if (CollectionUtils.isEmpty(signals)) {
+            return getAllFilters();
+        }
+        return spec
+            .filters()
+            .stream()
+            .filter(filter -> signals.stream().anyMatch(filter::appliesTo))
+            .toList();
     }
 
     @Override

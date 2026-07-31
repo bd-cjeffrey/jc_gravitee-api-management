@@ -22,9 +22,11 @@ import io.gravitee.rest.api.management.v2.rest.model.analytics.engine.ApiName;
 import io.gravitee.rest.api.management.v2.rest.model.analytics.engine.FilterSpec;
 import io.gravitee.rest.api.management.v2.rest.model.analytics.engine.FilterSpecsResponse;
 import io.gravitee.rest.api.management.v2.rest.model.analytics.engine.Operator;
+import io.gravitee.rest.api.management.v2.rest.model.analytics.engine.Signal;
 import io.gravitee.rest.api.management.v2.rest.resource.AbstractResourceTest;
 import io.gravitee.rest.api.model.EnvironmentEntity;
 import io.gravitee.rest.api.service.common.GraviteeContext;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
@@ -149,5 +151,87 @@ class ObservabilityFiltersDefinitionResourceTest extends AbstractResourceTest {
                 assertThat(apiFilter.getApiTypes()).isNotNull();
                 assertThat(apiFilter.getApiTypes()).isNotEmpty();
             });
+    }
+
+    @Test
+    void should_expose_the_signals_a_filter_applies_to() {
+        var response = rootTarget().request().get();
+
+        assertThat(response)
+            .hasStatus(200)
+            .asEntity(FilterSpecsResponse.class)
+            .extracting(FilterSpecsResponse::getData)
+            .satisfies(filters -> {
+                assertThat(filterNamed(filters, "API").getSignals()).containsExactlyInAnyOrder(Signal.LOGS, Signal.ANALYTICS);
+                // Logs-only: the analytics engine has no counterpart for a payload search.
+                assertThat(filterNamed(filters, "PAYLOAD").getSignals()).containsExactly(Signal.LOGS);
+                // Unannotated entries fall back to ANALYTICS.
+                assertThat(filterNamed(filters, "GATEWAY").getSignals()).containsExactly(Signal.ANALYTICS);
+            });
+    }
+
+    @Test
+    void should_narrow_the_catalog_to_the_requested_signal() {
+        var response = rootTarget().queryParam("signal", "LOGS").request().get();
+
+        assertThat(response)
+            .hasStatus(200)
+            .asEntity(FilterSpecsResponse.class)
+            .extracting(FilterSpecsResponse::getData)
+            .satisfies(filters -> {
+                assertThat(filters).allSatisfy(filter -> assertThat(filter.getSignals()).contains(Signal.LOGS));
+                assertThat(names(filters)).containsExactlyInAnyOrder(
+                    "API",
+                    "APPLICATION",
+                    "PLAN",
+                    "API_PRODUCT",
+                    "HTTP_METHOD",
+                    "HTTP_STATUS",
+                    "HTTP_STATUS_CODE_GROUP",
+                    "HTTP_PATH",
+                    "HTTP_GATEWAY_RESPONSE_TIME",
+                    "MCP_PROXY_METHOD",
+                    "API_TYPE",
+                    "ERROR_KEY",
+                    "REQUEST_ID",
+                    "TRANSACTION_ID",
+                    "PAYLOAD"
+                );
+                // The filters APIM-14817 reported as offered-but-ignored on the logs screen.
+                assertThat(names(filters)).doesNotContain("GATEWAY", "HTTP_ENDPOINT_RESPONSE_TIME", "GEO_IP_COUNTRY");
+            });
+    }
+
+    @Test
+    void should_return_the_whole_catalog_when_no_signal_is_requested() {
+        var response = rootTarget().request().get();
+
+        assertThat(response)
+            .hasStatus(200)
+            .asEntity(FilterSpecsResponse.class)
+            .extracting(FilterSpecsResponse::getData)
+            .satisfies(filters -> assertThat(filters).hasSize(46));
+    }
+
+    @Test
+    void should_reject_an_unknown_signal() {
+        var response = rootTarget().queryParam("signal", "METRICS").request().get();
+
+        assertThat(response).hasStatus(400);
+    }
+
+    private static FilterSpec filterNamed(List<FilterSpec> filters, String name) {
+        return filters
+            .stream()
+            .filter(f -> f.getName().getValue().equals(name))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("No filter named " + name + " in the catalog"));
+    }
+
+    private static List<String> names(List<FilterSpec> filters) {
+        return filters
+            .stream()
+            .map(f -> f.getName().getValue())
+            .toList();
     }
 }

@@ -639,15 +639,25 @@ describe('EnvLogsComponent', () => {
       req.flush(EMPTY_RESPONSE);
     }));
 
-    it('should map the HTTP Path filter (stored as HTTP_PATH) to the URI search param', fakeAsync(() => {
-      // The console "HTTP Path" filter carries the store field name HTTP_PATH (the backend
-      // field code); the search API expects it as the URI filter. Seeding the real field name
-      // (not a fictional 'URI' field) is what makes this test catch the mapping.
+    it('should send the HTTP Path filter under its catalog name', fakeAsync(() => {
+      // The console used to rewrite HTTP_PATH to the engine's URI spelling. That translation now lives in the
+      // Management API, which aliases the catalog names — so the console forwards what the catalog published.
       setupWithFilter('HTTP_PATH', 'HTTP Path', ['/v1/test/test2']);
 
       const req = httpTestingController.expectOne({ method: 'POST', url: SEARCH_URL });
       expect(req.request.body.filters).toEqual(
-        expect.arrayContaining([expect.objectContaining({ name: 'URI', operator: 'EQ', value: '/v1/test/test2' })]),
+        expect.arrayContaining([expect.objectContaining({ name: 'HTTP_PATH', value: ['/v1/test/test2'] })]),
+      );
+      req.flush(EMPTY_RESPONSE);
+    }));
+
+    // APIM-14817: a filter outside the old hardcoded mapping must still reach the search request.
+    it('should pass a status code group filter from store to search request', fakeAsync(() => {
+      setupWithFilter('HTTP_STATUS_CODE_GROUP', 'Status Code Group', ['5XX']);
+
+      const req = httpTestingController.expectOne({ method: 'POST', url: SEARCH_URL });
+      expect(req.request.body.filters).toEqual(
+        expect.arrayContaining([expect.objectContaining({ name: 'HTTP_STATUS_CODE_GROUP', operator: 'IN', value: ['5XX'] })]),
       );
       req.flush(EMPTY_RESPONSE);
     }));

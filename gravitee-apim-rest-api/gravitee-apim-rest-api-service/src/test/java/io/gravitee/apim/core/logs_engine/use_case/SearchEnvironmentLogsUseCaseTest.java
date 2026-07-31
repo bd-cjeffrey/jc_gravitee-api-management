@@ -687,6 +687,32 @@ class SearchEnvironmentLogsUseCaseTest {
         }
 
         @Test
+        void should_reject_a_path_filter_with_the_in_operator() {
+            // The engine holds a single path pattern. This used to return early and leave the search
+            // unfiltered, which is the APIM-14817 failure mode.
+            when(userContextLoader.loadApis(any())).thenReturn(
+                new UserContext(
+                    AUDIT_INFO,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(List.of(API1))
+                )
+            );
+            var request = new SearchLogsRequest(
+                null,
+                List.of(new Filter(new ArrayFilter(FilterName.URI, Operator.IN, List.of("/api/users", "/api/products")))),
+                1,
+                10
+            );
+
+            assertThatThrownBy(() -> useCase.execute(new Input(AUDIT_INFO, request)))
+                .isInstanceOf(ValidationDomainException.class)
+                .hasMessage("Filter URI does not support operator IN.");
+        }
+
+        @Test
         void should_map_payload_contains_filter_to_body_text() {
             var request = new SearchLogsRequest(
                 null,
@@ -835,6 +861,114 @@ class SearchEnvironmentLogsUseCaseTest {
                 .hasMessageContaining("CONTAINS");
         }
 
+        @Test
+        void should_map_status_code_group_filter() {
+            var request = new SearchLogsRequest(
+                null,
+                List.of(new Filter(new ArrayFilter(FilterName.HTTP_STATUS_CODE_GROUP, Operator.IN, List.of("4XX", "5XX")))),
+                1,
+                10
+            );
+
+            when_searching(request);
+
+            var filtersCaptor = ArgumentCaptor.forClass(SearchLogsFilters.class);
+            verify(connectionLogsCrudService).searchApiConnectionLogs(any(), filtersCaptor.capture(), any(), any());
+
+            assertThat(filtersCaptor.getValue().statusCodeGroups()).containsExactlyInAnyOrder("4XX", "5XX");
+        }
+
+        @Test
+        void should_normalise_status_code_group_case() {
+            var request = new SearchLogsRequest(
+                null,
+                List.of(new Filter(new StringFilter(FilterName.HTTP_STATUS_CODE_GROUP, Operator.EQ, "5xx"))),
+                1,
+                10
+            );
+
+            when_searching(request);
+
+            var filtersCaptor = ArgumentCaptor.forClass(SearchLogsFilters.class);
+            verify(connectionLogsCrudService).searchApiConnectionLogs(any(), filtersCaptor.capture(), any(), any());
+
+            assertThat(filtersCaptor.getValue().statusCodeGroups()).containsExactly("5XX");
+        }
+
+        @Test
+        void should_reject_unknown_status_code_group() {
+            when(userContextLoader.loadApis(any())).thenReturn(
+                new UserContext(
+                    AUDIT_INFO,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(List.of(API1))
+                )
+            );
+            // A typo must not silently widen the search back to every status.
+            var request = new SearchLogsRequest(
+                null,
+                List.of(new Filter(new StringFilter(FilterName.HTTP_STATUS_CODE_GROUP, Operator.EQ, "6XX"))),
+                1,
+                10
+            );
+
+            assertThatThrownBy(() -> useCase.execute(new Input(AUDIT_INFO, request)))
+                .isInstanceOf(ValidationDomainException.class)
+                .hasMessageContaining("Unknown HTTP status code group '6XX'");
+        }
+
+        @Test
+        void should_map_http_status_bounds_to_a_status_range() {
+            var request = new SearchLogsRequest(
+                null,
+                List.of(
+                    new Filter(new NumericFilter(FilterName.HTTP_STATUS, Operator.GTE, 400)),
+                    new Filter(new NumericFilter(FilterName.HTTP_STATUS, Operator.LTE, 499))
+                ),
+                1,
+                10
+            );
+
+            when_searching(request);
+
+            var filtersCaptor = ArgumentCaptor.forClass(SearchLogsFilters.class);
+            verify(connectionLogsCrudService).searchApiConnectionLogs(any(), filtersCaptor.capture(), any(), any());
+
+            assertThat(filtersCaptor.getValue().statusRanges()).containsExactly(
+                SearchLogsFilters.StatusRange.builder().gte(400).lte(499).build()
+            );
+        }
+
+        @Test
+        void should_reject_an_inverted_http_status_range() {
+            when(userContextLoader.loadApis(any())).thenReturn(
+                new UserContext(
+                    AUDIT_INFO,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(List.of(API1))
+                )
+            );
+            var request = new SearchLogsRequest(
+                null,
+                List.of(
+                    new Filter(new NumericFilter(FilterName.HTTP_STATUS, Operator.GTE, 500)),
+                    new Filter(new NumericFilter(FilterName.HTTP_STATUS, Operator.LTE, 400))
+                ),
+                1,
+                10
+            );
+
+            assertThatThrownBy(() -> useCase.execute(new Input(AUDIT_INFO, request)))
+                .isInstanceOf(ValidationDomainException.class)
+                .hasMessageContaining("Invalid HTTP_STATUS range");
+        }
+
         @ParameterizedTest
         @MethodSource("responseTimeFiltersProvider")
         void should_map_response_time_filters(List<Filter> filters, List<Range> expectedRanges) {
@@ -899,13 +1033,12 @@ class SearchEnvironmentLogsUseCaseTest {
         }
 
         @Test
-        void should_ignore_numeric_filter_with_unsupported_operator() {
+        void should_apply_response_time_eq_as_a_single_point_range() {
+            // The catalog advertises EQ on response time, and the engine can only bound — so EQ collapses to
+            // [v, v]. It used to be dropped silently, which is the APIM-14817 class of bug.
             var request = new SearchLogsRequest(
                 null,
-                List.of(
-                    new Filter(new NumericFilter(FilterName.RESPONSE_TIME, Operator.EQ, 100)),
-                    new Filter(new NumericFilter(FilterName.RESPONSE_TIME, Operator.IN, 200))
-                ),
+                List.of(new Filter(new NumericFilter(FilterName.RESPONSE_TIME, Operator.EQ, 100))),
                 1,
                 10
             );
@@ -915,7 +1048,31 @@ class SearchEnvironmentLogsUseCaseTest {
             var filtersCaptor = ArgumentCaptor.forClass(SearchLogsFilters.class);
             verify(connectionLogsCrudService).searchApiConnectionLogs(any(), filtersCaptor.capture(), any(), any());
 
-            assertThat(filtersCaptor.getValue().responseTimeRanges()).isEmpty();
+            assertThat(filtersCaptor.getValue().responseTimeRanges()).containsExactly(new Range(100L, 100L));
+        }
+
+        @Test
+        void should_reject_numeric_filter_with_unsupported_operator() {
+            when(userContextLoader.loadApis(any())).thenReturn(
+                new UserContext(
+                    AUDIT_INFO,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(List.of(API1))
+                )
+            );
+            var request = new SearchLogsRequest(
+                null,
+                List.of(new Filter(new NumericFilter(FilterName.RESPONSE_TIME, Operator.IN, 200))),
+                1,
+                10
+            );
+
+            assertThatThrownBy(() -> useCase.execute(new Input(AUDIT_INFO, request)))
+                .isInstanceOf(ValidationDomainException.class)
+                .hasMessage("Filter RESPONSE_TIME does not support operator IN.");
         }
 
         @Test

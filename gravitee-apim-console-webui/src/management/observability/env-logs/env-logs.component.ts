@@ -43,7 +43,11 @@ import { EnvLogsTableComponent } from './components/env-logs-table/env-logs-tabl
 
 import { DashboardFiltersStore } from '../dashboards/ui/dashboard-viewer/dashboard-filters.store';
 import { FilterLabelResolver } from '../dashboards/ui/dashboard-viewer/filter-label.resolver';
-import { ObservabilityFiltersApiService } from '../data-access/observability-filters-api.service';
+import {
+  OBSERVABILITY_SIGNAL,
+  ObservabilityFiltersApiService,
+  ObservabilitySignal,
+} from '../data-access/observability-filters-api.service';
 import { EnvironmentLogsService, EnvironmentApiLog, SearchLogsParam, LogApiType } from '../../../services-ngx/environment-logs.service';
 import { SnackBarService } from '../../../services-ngx/snack-bar.service';
 import { GioTableWrapperPagination } from '../../../shared/components/gio-table-wrapper/gio-table-wrapper.component';
@@ -75,6 +79,8 @@ const API_TYPE_LABELS: Record<LogApiType, string> = {
   providers: [
     DatePipe,
     DashboardFiltersStore,
+    // This screen has no analytics widget, so the filter bar must only offer filters the logs search honours.
+    { provide: OBSERVABILITY_SIGNAL, useValue: 'LOGS' satisfies ObservabilitySignal },
     ObservabilityFiltersApiService,
     FilterLabelResolver,
     provideFilterDefinitions(ObservabilityFiltersApiService),
@@ -220,32 +226,23 @@ export class EnvLogsComponent {
     );
   }
 
+  /**
+   * Every active condition is forwarded. The filter bar only offers filters the backend advertises for the
+   * LOGS signal, so translating a known subset here — as this method used to — could only lose filters
+   * (APIM-14817).
+   */
   private buildSearchParam(params: {
     pagination: Pagination;
     requestFilters: ReturnType<DashboardFiltersStore['requestFilters']>;
     timeRange: { from: string; to: string };
   }): SearchLogsParam {
     const { page, perPage } = params.pagination;
-    // RequestFilter.value is always string[] for IN filters returned by the store;
-    // scalar (EQ) filters also arrive as string[] with a single element.
-    const filterMap = new Map<string, string[]>(
-      params.requestFilters.map(f => [f.name as string, Array.isArray(f.value) ? f.value : [f.value]]),
-    );
 
     return {
       page,
       perPage,
       timeRange: params.timeRange,
-      apiIds: filterMap.get('API'),
-      applicationIds: filterMap.get('APPLICATION'),
-      planIds: filterMap.get('PLAN'),
-      methods: filterMap.get('HTTP_METHOD'),
-      statuses: filterMap.get('HTTP_STATUS')?.map(Number),
-      entrypoints: filterMap.get('ENTRYPOINT'),
-      errorKeys: filterMap.get('ERROR_KEY'),
-      apiProductIds: filterMap.get('API_PRODUCT'),
-      uri: filterMap.get('HTTP_PATH')?.[0],
-      bodyText: filterMap.get('PAYLOAD')?.[0],
+      filters: params.requestFilters,
     };
   }
 

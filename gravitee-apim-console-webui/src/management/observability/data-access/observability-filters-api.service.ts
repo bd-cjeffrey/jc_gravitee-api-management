@@ -22,11 +22,22 @@ import {
 } from '@gravitee/gravitee-dashboard';
 
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { Constants } from '../../../entities/Constants';
+
+export type ObservabilitySignal = 'LOGS' | 'ANALYTICS' | 'TRACES';
+
+/**
+ * The observability signal a screen queries. Provide it wherever the filter bar must only offer filters that
+ * screen can actually apply; leave it unset to get the full catalog.
+ *
+ * It is an injection token rather than a `getDefinitions` argument because the dashboard library owns the call
+ * site through {@link FilterDefinitionProvider}, whose contract takes no parameters.
+ */
+export const OBSERVABILITY_SIGNAL = new InjectionToken<ObservabilitySignal>('OBSERVABILITY_SIGNAL');
 
 interface FilterSpecsResponseApi {
   data?: FilterSpecApi[];
@@ -67,10 +78,17 @@ interface FilterValueItemApi {
 export class ObservabilityFiltersApiService implements FilterDefinitionProvider, FilterValuesProvider {
   private readonly http = inject(HttpClient);
   private readonly constants = inject(Constants);
+  private readonly signal = inject(OBSERVABILITY_SIGNAL, { optional: true });
 
+  /**
+   * Returns the filter catalog, restricted to {@link OBSERVABILITY_SIGNAL} when the screen provides one.
+   * Without that restriction the backend returns the whole catalog, which is how the logs screen ended up
+   * offering analytics-only filters that were then dropped from the search (APIM-14817).
+   */
   getDefinitions(): Observable<FilterDefinition[]> {
     const url = `${this.constants.env?.v2BaseURL}/observability/filters/definition`;
-    return this.http.get<FilterSpecsResponseApi>(url).pipe(map(res => (res.data ?? []).map(item => this.mapDefinition(item))));
+    const params = this.signal ? new HttpParams().set('signal', this.signal) : undefined;
+    return this.http.get<FilterSpecsResponseApi>(url, { params }).pipe(map(res => (res.data ?? []).map(item => this.mapDefinition(item))));
   }
 
   getValues(query: FilterValuesQuery): Observable<FilterValuesResult> {
