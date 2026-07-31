@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 import { useHasFeature, useHasPermission } from '@gravitee/gamma-modules-sdk';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { EntrypointsAndShardingTagsPage } from './EntrypointsAndShardingTagsPage';
 import { useEntrypointConfigurations } from '../features/entrypoints/hooks/useEntrypointConfigurations';
 import { useEntrypointMappings } from '../features/entrypoints/hooks/useEntrypointMappings';
-import { useCreateShardingTag, useUpdateShardingTag } from '../features/entrypoints/hooks/useShardingTagMutations';
+import { useCreateShardingTag, useDeleteShardingTag, useUpdateShardingTag } from '../features/entrypoints/hooks/useShardingTagMutations';
 import { useShardingTags } from '../features/entrypoints/hooks/useShardingTags';
 import type { EntrypointMappingRow, ShardingTagRow } from '../features/entrypoints/types/entrypoint';
 
@@ -34,6 +34,7 @@ jest.mock('../features/entrypoints/hooks/useShardingTags');
 jest.mock('../features/entrypoints/hooks/useShardingTagMutations', () => ({
     useCreateShardingTag: jest.fn(),
     useUpdateShardingTag: jest.fn(),
+    useDeleteShardingTag: jest.fn(),
 }));
 
 jest.mock('../features/entrypoints/components/EntrypointConfigurationSection', () => ({
@@ -74,13 +75,17 @@ jest.mock('../features/entrypoints/components/ShardingTagsTable', () => ({
         canCreate,
         onOpenDetail,
         onEdit,
+        onDelete,
         canEdit,
+        canDelete,
     }: {
         rows: ShardingTagRow[];
         canCreate: boolean;
         onOpenDetail: (row: ShardingTagRow) => void;
         onEdit?: (row: ShardingTagRow) => void;
+        onDelete?: (row: ShardingTagRow) => void;
         canEdit?: boolean;
+        canDelete?: boolean;
         onCreate?: () => void;
         onUpgrade: () => void;
         hasLicense: boolean;
@@ -95,6 +100,11 @@ jest.mock('../features/entrypoints/components/ShardingTagsTable', () => ({
                     {canEdit ? (
                         <button type="button" onClick={() => onEdit?.(row)}>
                             Edit tag {row.key}
+                        </button>
+                    ) : null}
+                    {canDelete ? (
+                        <button type="button" onClick={() => onDelete?.(row)}>
+                            Delete tag {row.key}
                         </button>
                     ) : null}
                 </div>
@@ -139,6 +149,33 @@ jest.mock('../features/entrypoints/components/ShardingTagDetailSheet', () => ({
         ) : null,
 }));
 
+jest.mock('../features/entrypoints/components/ShardingTagDeleteDialog', () => ({
+    ShardingTagDeleteDialog: ({
+        open,
+        tag,
+        onClose,
+        onConfirm,
+        isDeleting,
+    }: {
+        open: boolean;
+        tag: ShardingTagRow | null;
+        onClose: () => void;
+        onConfirm: () => void;
+        isDeleting: boolean;
+    }) =>
+        open && tag ? (
+            <div>
+                <div>Delete tag dialog {tag.key}</div>
+                <button type="button" onClick={onClose} disabled={isDeleting}>
+                    Cancel delete
+                </button>
+                <button type="button" onClick={onConfirm} disabled={isDeleting}>
+                    Confirm delete
+                </button>
+            </div>
+        ) : null,
+}));
+
 jest.mock('../features/entrypoints/components/ShardingTagsLicenseDialog', () => ({
     ShardingTagsLicenseDialog: ({ open }: { open: boolean; onOpenChange: (open: boolean) => void }) =>
         open ? <div>License dialog</div> : null,
@@ -151,6 +188,7 @@ const mockUseHasPermission = jest.mocked(useHasPermission);
 const mockUseHasFeature = jest.mocked(useHasFeature);
 const mockUseCreateShardingTag = jest.mocked(useCreateShardingTag);
 const mockUseUpdateShardingTag = jest.mocked(useUpdateShardingTag);
+const mockUseDeleteShardingTag = jest.mocked(useDeleteShardingTag);
 
 const STUB_MAPPING_ROWS: EntrypointMappingRow[] = [
     {
@@ -188,6 +226,10 @@ describe('EntrypointsAndShardingTagsPage', () => {
             mutateAsync: jest.fn(),
             isPending: false,
         } as ReturnType<typeof useUpdateShardingTag>);
+        mockUseDeleteShardingTag.mockReturnValue({
+            mutateAsync: jest.fn(),
+            isPending: false,
+        } as ReturnType<typeof useDeleteShardingTag>);
         mockUseEntrypointConfigurations.mockReturnValue({
             data: { configs: [], failedEnvironmentNames: [] },
             isLoading: false,
@@ -301,5 +343,26 @@ describe('EntrypointsAndShardingTagsPage', () => {
         });
         render(<EntrypointsAndShardingTagsPage />);
         expect(screen.getByText(/Some environment or sharding tag names could not be loaded/)).not.toBeNull();
+    });
+
+    it('opens delete dialog when Delete is clicked and user can delete', () => {
+        render(<EntrypointsAndShardingTagsPage />);
+        fireEvent.click(screen.getByRole('button', { name: 'Delete tag prod' }));
+        expect(screen.getByText('Delete tag dialog prod')).not.toBeNull();
+    });
+
+    it('calls delete mutation and closes dialog when delete is confirmed', async () => {
+        const mutateAsync = jest.fn().mockResolvedValue(undefined);
+        mockUseDeleteShardingTag.mockReturnValue({
+            mutateAsync,
+            isPending: false,
+        } as ReturnType<typeof useDeleteShardingTag>);
+        render(<EntrypointsAndShardingTagsPage />);
+        fireEvent.click(screen.getByRole('button', { name: 'Delete tag prod' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }));
+        await waitFor(() => {
+            expect(mutateAsync).toHaveBeenCalledWith('prod');
+            expect(screen.queryByText('Delete tag dialog prod')).toBeNull();
+        });
     });
 });

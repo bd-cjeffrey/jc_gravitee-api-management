@@ -22,13 +22,14 @@ import { useState } from 'react';
 import { EntrypointConfigurationSection } from '../features/entrypoints/components/EntrypointConfigurationSection';
 import { EntrypointDetailSheet } from '../features/entrypoints/components/EntrypointDetailSheet';
 import { EntrypointMappingsTable } from '../features/entrypoints/components/EntrypointMappingsTable';
+import { ShardingTagDeleteDialog } from '../features/entrypoints/components/ShardingTagDeleteDialog';
 import { ShardingTagDetailSheet } from '../features/entrypoints/components/ShardingTagDetailSheet';
 import { ShardingTagFormSheet } from '../features/entrypoints/components/ShardingTagFormSheet';
 import { ShardingTagsLicenseDialog } from '../features/entrypoints/components/ShardingTagsLicenseDialog';
 import { CreateShardingTagButton, ShardingTagsTable } from '../features/entrypoints/components/ShardingTagsTable';
 import { useEntrypointConfigurations } from '../features/entrypoints/hooks/useEntrypointConfigurations';
 import { useEntrypointMappings } from '../features/entrypoints/hooks/useEntrypointMappings';
-import { useCreateShardingTag, useUpdateShardingTag } from '../features/entrypoints/hooks/useShardingTagMutations';
+import { useCreateShardingTag, useDeleteShardingTag, useUpdateShardingTag } from '../features/entrypoints/hooks/useShardingTagMutations';
 import { useShardingTags } from '../features/entrypoints/hooks/useShardingTags';
 import { SHARDING_TAGS_LICENSE_FEATURE } from '../features/entrypoints/license/shardingTagsLicense';
 import type { EntrypointMappingRow, NewOrgTagPayload, ShardingTagRow, UpdateOrgTagPayload } from '../features/entrypoints/types/entrypoint';
@@ -51,15 +52,18 @@ export function EntrypointsAndShardingTagsPage() {
     const canReadTags = useHasPermission({ anyOf: ['environment-tag-r', 'organization-tag-r'] });
     const canCreateTag = useHasPermission({ anyOf: ['environment-tag-c', 'organization-tag-c'] });
     const canUpdateTag = useHasPermission({ anyOf: ['environment-tag-u', 'organization-tag-u'] });
+    const canDeleteTag = useHasPermission({ anyOf: ['environment-tag-d', 'organization-tag-d'] });
     const hasShardingTagsLicense = useHasFeature(SHARDING_TAGS_LICENSE_FEATURE);
 
     const createTagMutation = useCreateShardingTag();
     const updateTagMutation = useUpdateShardingTag();
+    const deleteTagMutation = useDeleteShardingTag();
 
     const [selectedMapping, setSelectedMapping] = useState<EntrypointMappingRow | null>(null);
     const [selectedTag, setSelectedTag] = useState<ShardingTagRow | null>(null);
     const [tagSheet, setTagSheet] = useState<TagSheetState>({ type: 'closed' });
     const [licenseDialogOpen, setLicenseDialogOpen] = useState(false);
+    const [tagToDelete, setTagToDelete] = useState<ShardingTagRow | null>(null);
 
     function handleUpgrade() {
         setLicenseDialogOpen(true);
@@ -90,6 +94,27 @@ export function EntrypointsAndShardingTagsPage() {
         }
         setSelectedTag(null);
         setTagSheet({ type: 'edit', tag });
+    }
+
+    function handleDeleteTag(tag: ShardingTagRow) {
+        if (!hasShardingTagsLicense) {
+            handleUpgrade();
+            return;
+        }
+        setSelectedTag(null);
+        setTagSheet({ type: 'closed' });
+        setTagToDelete(tag);
+    }
+
+    function closeDeleteDialog() {
+        setTagToDelete(null);
+    }
+
+    async function handleConfirmDelete() {
+        if (!tagToDelete) return;
+        await deleteTagMutation.mutateAsync(tagToDelete.key);
+        notify.success('Tag successfully deleted');
+        closeDeleteDialog();
     }
 
     async function handleCreateSubmit(data: NewOrgTagPayload) {
@@ -174,8 +199,10 @@ export function EntrypointsAndShardingTagsPage() {
                                 canCreate={canCreateTag}
                                 hasLicense={hasShardingTagsLicense}
                                 canEdit={canUpdateTag}
+                                canDelete={canDeleteTag}
                                 onOpenDetail={handleOpenTag}
                                 onEdit={handleEditTag}
+                                onDelete={handleDeleteTag}
                                 onCreate={handleCreateTag}
                                 onUpgrade={handleUpgrade}
                             />
@@ -238,6 +265,13 @@ export function EntrypointsAndShardingTagsPage() {
                 onClose={closeTagSheet}
                 onSubmit={handleEditSubmit}
                 isSaving={updateTagMutation.isPending}
+            />
+            <ShardingTagDeleteDialog
+                open={tagToDelete !== null}
+                tag={tagToDelete}
+                onClose={closeDeleteDialog}
+                onConfirm={handleConfirmDelete}
+                isDeleting={deleteTagMutation.isPending}
             />
             <ShardingTagsLicenseDialog open={licenseDialogOpen} onOpenChange={setLicenseDialogOpen} />
         </div>
