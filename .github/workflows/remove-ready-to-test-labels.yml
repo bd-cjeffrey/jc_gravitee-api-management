@@ -35,7 +35,7 @@ jobs:
             # Get the last time the PR has been labeled with "ready_to_test"
             # Finally, remove the double quotes to be able to parse and compare the date
 
-            LAST_TIMESTAMP=$(curl -s "https://api.github.com/repos/gravitee-io/gravitee-api-management/issues/$PR_NUMBER/events?per_page\=1000" | jq '.[] | select(.event == "labeled" and .label.name == "ready_to_test") | .created_at' | tail -n 1 | tr -d '"')
+            LAST_TIMESTAMP=$(curl -s "https://api.github.com/repos/gravitee-io/gravitee-api-management/issues/$PR_NUMBER/events?per_page=1000" | jq -r '.[] | select(.event == "labeled" and .label != null and .label.name == "ready_to_test") | .created_at' | head -1)
             echo "PR $PR_NUMBER has been labeled at $LAST_TIMESTAMP"
 
             ONE_WEEK_AGO=$(($(date +%s) - 7*84600))
