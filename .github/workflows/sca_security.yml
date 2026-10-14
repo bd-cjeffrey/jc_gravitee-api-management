@@ -20,6 +20,7 @@ jobs:
       ### Configure DETECT environment variables
       env:
         DETECT_PROJECT_NAME: ${{ github.event.repository.name }}
+        DETECT_ARGS: detect.accuracy.required='NONE'
         
         
       with:
@@ -29,7 +30,7 @@ jobs:
         
         ### SCANNING: Optional fields
         # blackducksca_scan_failure_severities: 'BLOCKER,CRITICAL'
-        detect.accuracy.required: 'NONE'
+        
         ### Github Issues
         #  blackducksca_externalIssues_create: true
         #  github_token: ${{ secrets.GITHUB_TOKEN }} # Mandatory when blackducksca_externalIssues_create is set to 'true'
