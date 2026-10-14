@@ -21,6 +21,8 @@ jobs:
       env:
         DETECT_PROJECT_NAME: ${{ github.event.repository.name }}
         DETECT_ACCURACY_REQUIRED: 'NONE'
+        DETECT_CODE_LOCATION_NAME: ${{ github.event.repository.name }}-${{ github.ref_name }}
+        DETECT_DIAGNOSTIC: true
         
       with:
         ### SCANNING: Required fields
