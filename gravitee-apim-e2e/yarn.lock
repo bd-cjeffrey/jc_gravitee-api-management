@@ -1674,7 +1674,7 @@ __metadata:
     minipass-pipeline: "npm:^1.2.4"
     p-map: "npm:^4.0.0"
     ssri: "npm:^10.0.0"
-    tar: "npm:^6.1.11"
+    tar: "npm:^7.5.22"
     unique-filename: "npm:^3.0.0"
   checksum: 10c0/7992665305cc251a984f4fdbab1449d50e88c635bc43bf2785530c61d239c61b349e5734461baa461caaee65f040ab14e2d58e694f479c0810cffd181ba5eabc
   languageName: node
@@ -4379,7 +4379,7 @@ __metadata:
     nopt: "npm:^7.0.0"
     proc-log: "npm:^3.0.0"
     semver: "npm:^7.3.5"
-    tar: "npm:^6.1.2"
+    tar: "npm:^7.5.22"
     which: "npm:^4.0.0"
   bin:
     node-gyp: bin/node-gyp.js
@@ -5282,9 +5282,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tar@npm:^6.1.11, tar@npm:^6.1.2":
+"tar@npm:^7.5.22, tar@npm:^6.1.2":
   version: 6.2.1
-  resolution: "tar@npm:6.2.1"
+  resolution: "tar@npm:7.5.22"
   dependencies:
     chownr: "npm:^2.0.0"
     fs-minipass: "npm:^2.0.0"
