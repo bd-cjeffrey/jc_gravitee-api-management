@@ -8984,7 +8984,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dompurify@npm:^3.0.6, dompurify@npm:^3.2.4":
+"dompurify@npm:^3.4.17, dompurify@npm:^3.2.4":
   version: 3.2.5
   resolution: "dompurify@npm:3.2.5"
   dependencies:
@@ -11490,7 +11490,7 @@ __metadata:
   version: 2.22.0
   resolution: "isomorphic-dompurify@npm:2.22.0"
   dependencies:
-    dompurify: "npm:^3.2.4"
+    dompurify: "npm:^3.4.17"
     jsdom: "npm:^26.0.0"
   checksum: 10c0/d26000d4015994b04e03901698720f1db7d619d7b880bd47ee6d0265129be849b1ad0b7bb175b5b60153e77396394c356df5ebb083309084904dac0b0ee1f606
   languageName: node
@@ -15157,7 +15157,7 @@ __metadata:
     "@redocly/openapi-core": "npm:^1.4.0"
     classnames: "npm:^2.3.2"
     decko: "npm:^1.2.0"
-    dompurify: "npm:^3.0.6"
+    dompurify: "npm:^3.4.17"
     eventemitter3: "npm:^5.0.1"
     json-pointer: "npm:^0.6.2"
     lunr: "npm:^2.3.9"
